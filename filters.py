@@ -1,3 +1,0 @@
-
-class FIR(Filter):
-    pass
