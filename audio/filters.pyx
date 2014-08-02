@@ -8,11 +8,11 @@ import numpy as np
 #
 #  - rethink the base class issue. Interface with the common concepts
 #    (parameters, state, etc) but also specialized implementations that
-#    are fast. Focus on specialized fast implementation first and foremost.
+#    are fast. Focus on specialized and fast implementation first and foremost.
 #
 #  - "fixed-width" filters.Simpler is better, the previous design was too smart.
 #    No check is done that we don't screw things up, we may give access to 
-#    internal state for performance reasons
+#    internal state (for performance reasons).
 #
 #  - concept of opaque state that can be obtained, restored, maybe with context
 #    manager that can be used to deal for a moment with a state and then 
@@ -28,6 +28,9 @@ class FIR(Filter):
         self.a = np.array(a)
         self.state = np.zeros(len(a)-1)
     def __call__(self, input):
+        # in this simple implementation, filtering of vectors is dominated by
+        # the cost of function calls: computation times grows linearly with 
+        # the length of the input and is almost constant wrt the filter length.
         if np.isscalar(input):
             output = self.a[0] * input + np.dot(self.a[1:], self.state)
             self.state = np.r_[input, self.state[:-1]]
