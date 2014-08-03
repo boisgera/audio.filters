@@ -27,44 +27,54 @@ cdef class Filter:
      pass
 
 cdef class FIR(Filter):
+    cdef readonly object a # Array types are not allowed here, hence 'object'.
+    cdef double[:] _state  # Consider that the state is an opaque datum.
 
-    cdef public object a
-    cdef public object state
-    cdef double[:] _a
-    cdef double[:] _state
+    # TODO: we need a get/set state API (with set(None) that is a reset).
 
     def __cinit__(self, a):
-        self.a = np.array(a)
-        self._a = self.a
-        self.state = np.zeros(len(a)-1)
-        self._state = self.state
+        self.a = np.array(a, dtype=float, copy=True)
+        self._state = np.zeros(len(a)-1)
 
-    @cython.boundscheck(False)
-    @cython.wraparound(False)
     def __call__(self, input):
-        cdef unsigned int i, j, m, n
-        cdef double[:] _input, _output
-        cdef double[:] _a, _state
+        cdef np.ndarray[np.float64_t, ndim=1] _input
+        _input = np.array(input, dtype=float, copy=False)
+        return FIR_filter_2(self.a, self._state, _input)
+        
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+cdef np.ndarray[np.float64_t, ndim=1] FIR_filter_2(double[:] a, double[:] state, double[:] input):
+    cdef unsigned int i, j, m, n
+    cdef np.ndarray[np.float64_t, ndim=1] output
+    cdef double[:] _output
+    cdef double tmp        
+    cdef double[:] ext_state
+        
+    m = input.shape[0]
+    n = state.shape[0]
+    ext_state = np.empty(m+n)
+    ext_state[:n] = state
+    output = np.empty(m)
+    _output = output
+    for i in range(m):
+        tmp = a[0] * input[i]
+        for j in range(n):
+            tmp += a[j+1] * ext_state[n-1-j+i]
+        output[i] = tmp
+        ext_state[n+i] = input[i]
+    state = ext_state[m:m+n]
+    return output
 
-        if np.isscalar(input):
-            output = self.a[0] * input + np.dot(self.a[1:], self.state)
-            self.state = np.r_[input, self.state[:-1]]
-            return output
-        else:
-            _input = np.array(input, dtype=float, copy=False)
-            _a = self._a
-            _state = self._state
-            m = _input.shape[0]
-            n = _state.shape[0]
-            output = np.empty(m)
-            _output = output
-            for i in range(m):
-                _output[i] = _a[0] * _input[i] 
-                for j in range(n):
-                    _output[i] += _a[j+1] * _state[j]
-                _state[1:] = _state[:-1]
-                _state[0] = _input[i]
-        return output
-
-
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.nonecheck(False)
+cdef np.ndarray[np.float64_t, ndim=1] FIR_filter_dummy(double[:] a, double[:] state, double[:] input):
+    cdef unsigned int i, j, m, n
+    cdef np.ndarray[np.float64_t, ndim=1] output
+    cdef double[:] _output
+        
+    m = input.shape[0]
+    output = np.empty(m)
+    return output
 
