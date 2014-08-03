@@ -40,6 +40,7 @@ cdef class FIR(Filter):
         self._state = self.state
 
     @cython.boundscheck(False)
+    @cython.wraparound(False)
     def __call__(self, input):
         cdef unsigned int i, j, m, n
         cdef double[:] _input, _output
