@@ -39,12 +39,12 @@ cdef class FIR(Filter):
     def __call__(self, input):
         cdef np.ndarray[np.float64_t, ndim=1] _input
         _input = np.array(input, dtype=float, copy=False)
-        return FIR_filter_2(self.a, self._state, _input)
+        return FIR_filter(self.a, self._state, _input)
         
 @cython.boundscheck(False)
 @cython.wraparound(False)
 @cython.nonecheck(False)
-cdef np.ndarray[np.float64_t, ndim=1] FIR_filter_2(double[:] a, double[:] state, double[:] input):
+cdef np.ndarray[np.float64_t, ndim=1] FIR_filter(double[:] a, double[:] state, double[:] input):
     cdef unsigned int i, j, m, n
     cdef np.ndarray[np.float64_t, ndim=1] output
     cdef double[:] _output
@@ -66,15 +66,4 @@ cdef np.ndarray[np.float64_t, ndim=1] FIR_filter_2(double[:] a, double[:] state,
     state = ext_state[m:m+n]
     return output
 
-@cython.boundscheck(False)
-@cython.wraparound(False)
-@cython.nonecheck(False)
-cdef np.ndarray[np.float64_t, ndim=1] FIR_filter_dummy(double[:] a, double[:] state, double[:] input):
-    cdef unsigned int i, j, m, n
-    cdef np.ndarray[np.float64_t, ndim=1] output
-    cdef double[:] _output
-        
-    m = input.shape[0]
-    output = np.empty(m)
-    return output
 
