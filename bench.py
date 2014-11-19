@@ -3,12 +3,21 @@ import audio.filters
 
 import docbench
 
-def bench():
+def bench_44100():
     """
     >>> import numpy as np
     >>> fir = audio.filters.FIR(a=np.ones(512))
     >>> input = np.ones(44100)
     >>> output = fir(input)
+    """
+
+def bench_44100():
+    """
+    >>> import numpy as np
+    >>> fir = audio.filters.FIR(a=np.ones(512))
+    >>> inputs = np.ones((50, 882))
+    >>> for input in inputs: 
+    ...     output = fir(input)
     """
 
 if __name__ == "__main__":
