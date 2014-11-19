@@ -9,7 +9,7 @@ import setuptools
 # https://github.com/cython/cython/wiki/PackageHierarchy
 
 if __name__ == "__main__":
-    setup(
+    setuptools.setup(
       name = "audio.filters",
       version = "0.1",
       packages = setuptools.find_packages(),
