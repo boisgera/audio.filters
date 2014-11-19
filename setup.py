@@ -2,8 +2,8 @@
 # coding: utf-8
 
 # Third-Party Libraries
-from setuptools import setup
-from Cython.Build import cythonize
+import setuptools
+#from Cython.Build import cythonize
 
 # Source:
 # https://github.com/cython/cython/wiki/PackageHierarchy
@@ -11,7 +11,8 @@ from Cython.Build import cythonize
 if __name__ == "__main__":
     setup(
       name = "audio.filters",
-      packages = ["audio"],
-      ext_modules = cythonize("audio/filters.pyx")
+      version = "0.1",
+      packages = setuptools.find_packages(),
+      #ext_modules = cythonize("audio/filters.pyx")
     )
 
