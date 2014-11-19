@@ -28,7 +28,7 @@ cdef class Filter:
 
 cdef class FIR(Filter):
     cdef readonly object a # Arrays are not allowed here, hence the 'object' type.
-    cdef double[:] _state  # Sequence of input values, with oldest values first.
+    cdef double[:] _state  # Sequence of input values, with older values first.
 
     def __cinit__(self, a):
         self.a = np.array(a, dtype=float, copy=True)
@@ -48,13 +48,18 @@ cdef class FIR(Filter):
     #   - set_state(None) resets the filter state.
     # 
  
-
+    @cython.boundscheck(False)
+    @cython.wraparound(False)
+    @cython.nonecheck(False)
     cpdef set_state(self, double[:] state):
         if state is None:
-            self._state = np.zeros(len(self.a)-1)            
+            self._state = np.zeros_like(self._state)            
         else:
-            self._state = state.copy()
+            self._state[:] = state
 
+    # Question: is the property syntaxic sugar a mistake ? (for semantic
+    # reasons: there is an implicit copy that is done on the read and on
+    # the write). And what about performance wrt the function calls ?
     property state:
         def __get__(self):
             return self.get_state()
@@ -92,5 +97,21 @@ cdef np.ndarray[np.float64_t, ndim=1] FIR_filter(double[:] a, double[:] state, d
         ext_state[n+i] = input[i]
     state[:] = ext_state[m:m+n]
     return output
+
+
+
+
+def low_pass(fc, dt=1.0, window=np.ones):
+    if not 0 <= fc <= 0.5 / dt:
+        template  = "invalid cutoff frequency fc={0}: "
+        template += "0 <= fc <= 0.5/dt = {1}Hz does not hold."
+        message = template.format(fc, 0.5 / dt)
+        raise ValueError(message)
+    def h(n):
+        t = np.arange(-0.5 * (n-1), 0.5 * (n-1) + 1) * dt
+        return 2 * fc * np.sinc(2 * fc * t) * window(n)
+    return h
+
+
 
 
