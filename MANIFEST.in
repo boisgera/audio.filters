@@ -1,2 +1,3 @@
-exclude setup.cfg
-
+include test.py
+recursive-include .lib *
+recursive-exclude .lib *.pyc
