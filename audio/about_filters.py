@@ -2,7 +2,7 @@
 
 metadata = dict(
   __name__        = "audio.filters",
-  __version__     = "0.2.0",
+  __version__     = "0.2.1",
   __license__     = "MIT License",  
   __author__      = u"Sébastien Boisgérault <Sebastien.Boisgerault@mines-paristech.fr>",
   __url__         = "https://github.com/boisgera/audio.filters/",

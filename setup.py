@@ -47,7 +47,7 @@ info = dict(
   code         = dict(packages=setuptools.find_packages()),
                  #ext_modules = cythonize("audio/filters.pyx")
   data         = {},
-  requirements = {},
+  requirements = dict(install_requires="audio.fourier"),
   scripts      = {},
   plugins      = {},
   tests        = dict(test_suite="test.suite"),
