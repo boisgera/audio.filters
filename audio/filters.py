@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 # coding: utf-8
 """
-Filters
+Audio Filters
 """
 
 # Python 2.7 Standard Library
+import abc
 import doctest
 import sys
 
 # Third-Party Libraries
 import numpy as np
-from numpy import * # TODO: remove
 
 # Local Library
 from audio.fourier import F
@@ -19,8 +19,7 @@ from audio.fourier import F
 # Metadata
 # ------------------------------------------------------------------------------
 #
-__author__ = u"Sébastien Boisgérault <Sebastien.Boisgerault@mines-paristech.fr>"
-__version__ = None
+from .about_filters import *
 
 #
 # TODO
@@ -37,98 +36,84 @@ __version__ = None
 #     "frequency response would be better ... still ...
 #   - put filter banks here ? submodule QMF ?
 #   - is the ability to change the size of the filter an anti-pattern ?
+#dependencies: script, spectrum
+
+#  - kill script dependency,
+
+#  - reconsider the support for `F` w.r.t. evolutions of `audio.fourier`.
+
+#Core:
+
+#  - make filter length fixed (dynamic length is too smart).
+
+#  - consider read-only filter parameters (tricky: arrays can be changed but
+#    not replaced, won't work for scalar params that shall be mutable).
+
+#  - use opaque filter states (get/set semantics).
+
+#  - support lattice filters (for linear prediction).
+
+#  - add gain parameter to `AR` filter (?).
+
+#  - generic parameter interface for all filters (tricky).
+
+#  - cythonize for performance & correctness.
+
+#Extra:
+
+#  - `low_pass`: ???
+
+#  - `MPEG` stuff & filter banks: ???
 
 #
-# Filter Types
+# Filter Abstract Base Class
 # ------------------------------------------------------------------------------
 #
 
 class Filter(object):
+    __metaclass__ = abc.ABCMeta
     """
     Filters Base Class.
     """
-    def __init__(self, a=None, state=None):
+    @abc.abstractmethod
+    def __init__(self, a):
         """
-        Arguments
-        ----------
+        Argument
+        --------
 
           - `a`: the filter coefficients, a sequence of numbers,
-
-          - `state`: the filter state, a sequence of numbers.
-
         """
-        if type(self) is Filter:
-            error = "the Filter class is abstract."
-            raise NotImplementedError(error)
-        self.a = a
-        self.state = state
 
+        self._a = np.array(a, ndmin=1)
+        
     def get_a(self):
         """
-        Return a copy of the filter coefficients.
+        Return a view of the filter coefficients.
         """
-        return np.copy(self._a)
-        
-    def set_a(self, a):
-        """
-        Set new filter coefficients.
-        """
-        a = np.copy(np.ravel(a))
-        self._a = a
-        self.set_state()
+        return self._a
             
-    a = property(get_a, set_a)
+    a = property(get_a)
 
-    def state_length(self):
-        raise NotImplementedError()
+    # TODO: document the legit use of state: as an opaque variable only.
 
-    def set_state(self, state=None):
-        """
-        Set the filter state (internal).
-
-        The length of the state should be consistent with the length of the 
-        filter coefficients.
-        """
-        # internal use : if state is None, change the filter state to respond 
-        # to a change in self.a size ; the function also allocates the filter
-        # state if it does not exist.
-        n = self.state_length()
-        try:
-           _state = self._state
-        except AttributeError:
-           _state = self._state = np.zeros(n)
-
-        if state is None:
-            if len(_state) < n:
-                self._state = np.r_[_state, np.zeros(n - len(_state))]
-            elif len(_state) > n:
-                self._state = _state[:n]
-        else:
-            if len(state) == n:
-                self._state = np.copy(state)
-            else:
-                error = "invalid state length {0} (should be {1})"
-                raise ValueError(error.format(len(state), n))
-        
     def get_state(self):
-        """
-        Get a copy of the filter state
-        """
         return np.copy(self._state)
 
-    def _get_state(self):
-        return self.get_state()
-    def _set_state(self, state=None):
-        return self.set_state(state)            
-    state = property(_get_state, _set_state) 
+    def set_state(self, state=None):
+        if state is None:
+            self._state = np.zeros_like(self._state)
+        else:
+            self._state[:] = state
 
+    state = property(get_state, set_state) 
+
+    @abc.abstractmethod
     def __call__(self, input):
         """
-
         Compute new filter output value(s)
 
-        Parameters
-        ----------
+        Argument
+        --------
 
           - `input`: number or sequence of numbers
 
@@ -137,48 +122,53 @@ class Filter(object):
 
           - `output`: number or sequence of numbers
         """
-        raise NotImplementedError()
+        pass
 
+    @abc.abstractmethod
     def poles(self):
         """
         Compute the filter poles.
         """
-        raise NotImplementedError()
+        pass
 
+    @abc.abstractmethod
     def __F__(self, *kwargs):
         """
         Return the filter frequency response.
         """
-        raise NotImplementedError()
+        pass
 
     def __repr__(self):
-        # TODO: don't display arguments when they have their default value.
         type_name = type(self).__name__
-        args = (type_name, list(self.a), list(self.state))
-        return "{0}(a={1}, state={2})".format(*args)
+        args = (type_name, list(self.a))
+        return "{0}(a={1})".format(*args)
 
     __str__ = __repr__
 
 
 #
+# Finite Impulse Response Filter
 # ------------------------------------------------------------------------------
 #
 
-# TODO: handle FIR(a=[]) (zero filter, no state, etc.)
+
 class FIR(Filter):
     """
 Finite Impulse Response Filter
 
     y[n] = a[0] * u[n] + ... + a[N-1] * u[n-N+1]
 """   
-    def state_length(self):
-        return len(self._a) - 1
+
+    def __init__(self, a):
+        Filter.__init__(self, a)
+        self._state = np.zeros_like(self.a[1:])
 
     def __call__(self, input):
         if np.shape(input):
             inputs = np.ravel(input)
             return np.array([self(input) for input in inputs])
         else:
+            # The state array stores the most recent values first.
             output = self._a[0] * input + np.dot(self._a[1:], self.state)
             if len(self._state):
                 self._state = np.r_[input, self.state[:-1]]
@@ -188,12 +178,13 @@ Finite Impulse Response Filter
         return np.zeros(len(self.a))
 
     def __F__(self, *args, **kwargs): 
-        # TODO: support other extra arguments than dt
-        # Rk: wont work if dt is positional ...
+        # TODO: support other arguments beyond dt ? 
+        # TODO: make it work when dt is positional.
         dt = kwargs.get("dt") or 1.0
         return F(self.a / dt, dt=dt) 
 
 #
+# Auto-Regressive Filter
 # ------------------------------------------------------------------------------
 #
 
@@ -204,8 +195,9 @@ Auto-Regressive Filter
     y[n] = a[0] * y[n-1] + ... + a[N-1] * y[n-N+1] + u[n]
     """
 
-    def state_length(self):
-        return len(self._a)
+    def __init__(self, a):
+        Filter.__init__(self, a)
+        self._state = np.zeros_like(self.a)
 
     def __call__(self, input):
         if np.isscalar(input):
@@ -227,8 +219,9 @@ Auto-Regressive Filter
     def poles(self):
         return np.roots(r_[1.0, -self.a])
 
-    def __F__(self, *args, **kwargs): # TODO: support other extra arguments than dt
-        # Rk: wont work if dt is positional ...
+    def __F__(self, *args, **kwargs):
+        # TODO: support other arguments beyond dt ? 
+        # TODO: make it work when dt is positional.
         dt = kwargs.get("dt") or 1.0
         FIR_spectrum = F(FIR(a=r_[1.0, -self.a]), dt=dt)
         def AR_spectrum(f):
@@ -444,9 +437,10 @@ class Analyzer(object):
     The i-th filter is a simple delay of i + 4 samples. 
     The common filter length is set to 8 (the minimal requirement).
     
-        >>> Z = zeros((4, 4), dtype=float)
-        >>> I = eye(4, dtype=float)
-        >>> a = c_[Z, I]
+        >>> import numpy as np
+        >>> Z = np.zeros((4, 4), dtype=float)
+        >>> I = np.eye(4, dtype=float)
+        >>> a = np.c_[Z, I]
 
         >>> analyzer = Analyzer(a)
         >>> analyzer.M, analyzer.N
@@ -475,7 +469,7 @@ class Analyzer(object):
         """
         self.M, self.N = np.shape(a)
         self.A = gain * a * dt
-        self.buffer = zeros(self.N)
+        self.buffer = np.zeros(self.N)
 
     def __call__(self, frame):
         """
@@ -521,9 +515,9 @@ class Synthesizer(object):
     documentation, with a combined delay of 2 frames (8 samples).
 
 
-        >>> Z = zeros((4, 4), dtype=float)
-        >>> J = eye(4, dtype=float)[:,::-1]
-        >>> a = c_[Z, J]
+        >>> Z = np.zeros((4, 4), dtype=float)
+        >>> J = np.eye(4, dtype=float)[:,::-1]
+        >>> a = np.c_[Z, J]
 
         >>> synthesizer = Synthesizer(a)
         >>> synthesizer.M, synthesizer.N
@@ -657,22 +651,6 @@ FIR of order 2: linear extrapolation
     >>> all(fir([0.0, 0.0]) == [1.0, 0.0])
     True
     >>> all(fir.state == [0.0, 0.0])
-    True
-
-FIR with dynamic coefficients
-
-    >>> fir = FIR([0.5, 0.5])
-    >>> match(fir([2.0, 4.0, 2.0, 2.0]), [1.0, 3.0, 3.0, 2.0])
-    True
-    >>> fir.a = [0.25, 0.25, 0.25, 0.25]
-    >>> all(fir.state == [2.0, 0.0, 0.0]) # state padded with zeros
-    True
-    >>> match(fir([2.0, 4.0, 4.0]), [1.0, 2.0, 3.0])
-    True
-    >>> fir.a = [0.5, 0.5]
-    >>> all(fir.state == [4.0, 4.0]) # state truncated
-    True
-    >>> match(fir([0.0, 0.0]), [2.0, 0.0])
     True
 
 FIR frequency response
