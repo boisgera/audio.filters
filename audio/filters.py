@@ -217,7 +217,7 @@ Auto-Regressive Filter
             return output
 
     def poles(self):
-        return np.roots(r_[1.0, -self.a])
+        return np.roots(np.r_[1.0, -self.a])
 
     def __F__(self, *args, **kwargs):
         # TODO: support other arguments beyond dt ? 
